@@ -12,7 +12,7 @@ env:
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
   SERVICE_ACCOUNT: "github-deployer@pagetest-446907.iam.gserviceaccount.com"
-  WORKLOAD_IDENTITY_PROVIDER: "projects/748186395629/locations/global/workloadIdentityPools/github-pool/attribute.repository/dudox/k8s-gcp-arch"
+  WORKLOAD_IDENTITY_PROVIDER: "projects/748186395629/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
 
 jobs:
   build-and-push:
