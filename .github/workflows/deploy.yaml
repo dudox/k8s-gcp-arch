@@ -11,8 +11,8 @@ env:
   IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
-  SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
-  WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+  SERVICE_ACCOUNT: "github-deployer@pagetest-446907.iam.gserviceaccount.com"
+  WORKLOAD_IDENTITY_PROVIDER: "projects/748186395629/locations/global/workloadIdentityPools/github-pool/attribute.repository/dudox/k8s-gcp-arch"
 
 jobs:
   build-and-push:
