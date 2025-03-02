@@ -1,4 +1,4 @@
-name: Deploy to GCR and GKE with Release
+name: Deploy to GKE
 
 on:
   push:
@@ -7,17 +7,19 @@ on:
       - stage
 
 env:
-  PROJECT_ID: your-gcp-project
-  REGION: us-central1  # Change this to your region
-  IMAGE_NAME: app-pagetest
-  GKE_CLUSTER: your-gke-cluster
-  GKE_ZONE: us-central1-c  # Change this to your GKE cluster zone
+  PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+  WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
 
 jobs:
   build-and-push:
-    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,7 +27,8 @@ jobs:
       - name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SERVICE_KEY }}
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -33,85 +36,49 @@ jobs:
       - name: Configure Docker for GCR
         run: gcloud auth configure-docker gcr.io
 
-      - name: Define Environment Variables
+      - name: Determine Deployment Environment
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "DEPLOY_ENV=production" >> $GITHUB_ENV
-            echo "DEPLOY_TAG=prod" >> $GITHUB_ENV
           else
             echo "DEPLOY_ENV=stage" >> $GITHUB_ENV
-            echo "DEPLOY_TAG=stage" >> $GITHUB_ENV
           fi
 
-      - name: Build and Tag Docker Image
+      - name: Build and Push Docker Image
         run: |
-          docker build -t gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ env.DEPLOY_TAG }} .
-          docker tag gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ env.DEPLOY_TAG }} gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}
-
-      - name: Push Docker Image to GCR
-        run: |
-          docker push gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ env.DEPLOY_TAG }}
+          docker build -t gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }} .
           docker push gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}
 
   deploy:
-    name: Deploy to GKE
     runs-on: ubuntu-latest
     needs: build-and-push
-
     steps:
       - name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SERVICE_KEY }}
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - name: Get GKE Credentials
         run: gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
-      - name: Define Environment Variables
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "DEPLOY_ENV=production" >> $GITHUB_ENV
-            echo "DEPLOY_TAG=prod" >> $GITHUB_ENV
-          else
-            echo "DEPLOY_ENV=stage" >> $GITHUB_ENV
-            echo "DEPLOY_TAG=stage" >> $GITHUB_ENV
-          fi
-
       - name: Deploy to Kubernetes
         run: |
-          kubectl set image deployment/app-pagetest laravel=gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }} -n ${{ env.DEPLOY_ENV }}
+          kubectl set image deployment/app-pagetest app-pagetest=gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }} -n ${{ env.DEPLOY_ENV }}
           kubectl rollout status deployment/app-pagetest -n ${{ env.DEPLOY_ENV }}
 
       - name: Rollback on Failure
         if: failure()
-        run: |
-          echo "Deployment failed! Rolling back..."
-          kubectl rollout undo deployment/app-pagetest -n ${{ env.DEPLOY_ENV }}
+        run: kubectl rollout undo deployment/app-pagetest -n ${{ env.DEPLOY_ENV }}
 
   release:
-    name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: deploy
-    if: github.ref == 'refs/heads/main'  # Only release on main branch
-
+    if: github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Generate Release Notes
-        run: |
-          echo "## Changes in this release" > release_notes.md
-          echo "" >> release_notes.md
-          git log --oneline --no-merges -10 >> release_notes.md
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ github.run_number }}
           name: "Release ${{ github.run_number }}"
-          body_path: release_notes.md
-          draft: false
-          prerelease: false
+          body: "Automated deployment of commit ${{ github.sha }}"
