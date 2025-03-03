@@ -26,6 +26,7 @@ jobs:
       - name: Authenticate with Google Cloud ${{env.WORKLOAD_IDENTITY_PROVIDER}} ${{ env.SERVICE_ACCOUNT }}
         uses: google-github-actions/auth@v2
         with:
+          project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.SERVICE_ACCOUNT }}
 
