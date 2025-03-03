@@ -11,8 +11,8 @@ env:
   IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
-  SERVICE_ACCOUNT: "github-deployer@pagetest-446907.iam.gserviceaccount.com"
-  WORKLOAD_IDENTITY_PROVIDER: "projects/748186395629/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+  SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+  WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
 
 jobs:
   build-and-push:
@@ -23,12 +23,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Authenticate with Google Cloud ${{env.WORKLOAD_IDENTITY_PROVIDER}} ${{ env.SERVICE_ACCOUNT }}
+      - name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
